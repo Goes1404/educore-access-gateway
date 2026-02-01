@@ -1,25 +1,27 @@
-import { useState } from "react";
-import AuthLayout from "@/components/auth/AuthLayout";
-import LoginForm from "@/components/auth/LoginForm";
-import SignupForm from "@/components/auth/SignupForm";
-import AIAssistant from "@/components/auth/AIAssistant";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import AuthPage from "./AuthPage";
 
 const Index = () => {
-  const [isLogin, setIsLogin] = useState(true);
+  const { user, loading } = useAuth();
+  const navigate = useNavigate();
 
-  return (
-    <TooltipProvider>
-      <AuthLayout>
-        {isLogin ? (
-          <LoginForm onSwitchToSignup={() => setIsLogin(false)} />
-        ) : (
-          <SignupForm onSwitchToLogin={() => setIsLogin(true)} />
-        )}
-      </AuthLayout>
-      <AIAssistant context={isLogin ? "Tela de login" : "Tela de cadastro"} />
-    </TooltipProvider>
-  );
+  useEffect(() => {
+    if (!loading && user) {
+      navigate("/dashboard");
+    }
+  }, [user, loading, navigate]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  return <AuthPage />;
 };
 
 export default Index;
