@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Eye, EyeOff, Mail, Lock, User, Phone, ArrowLeft, ArrowRight, GraduationCap, Rocket, UserCog, Info, Upload, Check } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, User, Phone, ArrowLeft, ArrowRight, GraduationCap, Rocket, UserCog, Info, Upload, Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useAuth } from "@/hooks/useAuth";
 
 interface SignupFormProps {
   onSwitchToLogin: () => void;
@@ -16,6 +17,8 @@ const SignupForm = ({ onSwitchToLogin }: SignupFormProps) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { signUp } = useAuth();
 
   // Step 1 - Basic Data
   const [fullName, setFullName] = useState("");
@@ -68,26 +71,51 @@ const SignupForm = ({ onSwitchToLogin }: SignupFormProps) => {
     );
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const validateStep1 = () => {
+    if (!fullName || !email || !phone || !password || !confirmPassword) {
+      return false;
+    }
+    if (password !== confirmPassword) {
+      return false;
+    }
+    if (password.length < 8) {
+      return false;
+    }
+    return true;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     if (step === 1) {
-      setStep(2);
+      if (validateStep1()) {
+        setStep(2);
+      }
     } else if (step === 2 && profileType) {
       setStep(3);
-    } else if (step === 3 && acceptedTerms) {
-      console.log("Signup attempt:", {
-        fullName,
+    } else if (step === 3 && acceptedTerms && profileType) {
+      setIsSubmitting(true);
+      
+      const { error } = await signUp({
         email,
+        password,
+        fullName,
         phone,
         profileType,
-        currentSchool,
-        desiredCourse,
-        familyIncome,
-        technicalCourse,
-        inviteCode,
-        subject,
-        teachingTargets
+        currentSchool: currentSchool || undefined,
+        desiredCourse: desiredCourse || undefined,
+        familyIncome: familyIncome || undefined,
+        technicalCourse: technicalCourse || undefined,
+        subject: subject || undefined,
+        teachingTargets: teachingTargets.length > 0 ? teachingTargets : undefined,
       });
+
+      if (!error) {
+        // Switch to login after successful signup
+        onSwitchToLogin();
+      }
+      
+      setIsSubmitting(false);
     }
   };
 
@@ -207,6 +235,7 @@ const SignupForm = ({ onSwitchToLogin }: SignupFormProps) => {
               placeholder="Mínimo 8 caracteres"
               className="educore-input pl-12 pr-12"
               required
+              minLength={8}
             />
             <button
               type="button"
@@ -229,7 +258,9 @@ const SignupForm = ({ onSwitchToLogin }: SignupFormProps) => {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Repita a senha"
-              className="educore-input pl-12 pr-12"
+              className={`educore-input pl-12 pr-12 ${
+                confirmPassword && password !== confirmPassword ? "border-destructive" : ""
+              }`}
               required
             />
             <button
@@ -240,6 +271,9 @@ const SignupForm = ({ onSwitchToLogin }: SignupFormProps) => {
               {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
             </button>
           </div>
+          {confirmPassword && password !== confirmPassword && (
+            <p className="text-sm text-destructive mt-1">As senhas não coincidem</p>
+          )}
         </div>
       </div>
     </>
@@ -510,6 +544,7 @@ const SignupForm = ({ onSwitchToLogin }: SignupFormProps) => {
               variant="outline"
               onClick={() => setStep(step - 1)}
               className="flex-1 py-6"
+              disabled={isSubmitting}
             >
               <ArrowLeft className="w-4 h-4 mr-2" />
               Voltar
@@ -518,12 +553,19 @@ const SignupForm = ({ onSwitchToLogin }: SignupFormProps) => {
           <Button
             type="submit"
             disabled={
+              (step === 1 && !validateStep1()) ||
               (step === 2 && !profileType) ||
-              (step === 3 && !acceptedTerms)
+              (step === 3 && !acceptedTerms) ||
+              isSubmitting
             }
             className="flex-1 py-6 text-base font-semibold shadow-button disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {step === 3 ? (
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                Criando conta...
+              </>
+            ) : step === 3 ? (
               "Criar Conta"
             ) : (
               <>

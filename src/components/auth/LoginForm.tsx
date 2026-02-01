@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Eye, EyeOff, Mail, Lock } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useAuth } from "@/hooks/useAuth";
 
 interface LoginFormProps {
   onSwitchToSignup: () => void;
@@ -12,10 +13,16 @@ const LoginForm = ({ onSwitchToSignup }: LoginFormProps) => {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { signIn } = useAuth();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Login attempt:", { email, rememberMe });
+    setIsSubmitting(true);
+    
+    await signIn(email, password);
+    
+    setIsSubmitting(false);
   };
 
   return (
@@ -49,6 +56,7 @@ const LoginForm = ({ onSwitchToSignup }: LoginFormProps) => {
               placeholder="seu@email.com"
               className="educore-input pl-12"
               required
+              disabled={isSubmitting}
             />
           </div>
         </div>
@@ -68,6 +76,7 @@ const LoginForm = ({ onSwitchToSignup }: LoginFormProps) => {
               placeholder="••••••••"
               className="educore-input pl-12 pr-12"
               required
+              disabled={isSubmitting}
             />
             <button
               type="button"
@@ -103,8 +112,19 @@ const LoginForm = ({ onSwitchToSignup }: LoginFormProps) => {
         </div>
 
         {/* Submit Button */}
-        <Button type="submit" className="w-full py-6 text-base font-semibold shadow-button">
-          Entrar
+        <Button 
+          type="submit" 
+          className="w-full py-6 text-base font-semibold shadow-button"
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? (
+            <>
+              <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+              Entrando...
+            </>
+          ) : (
+            "Entrar"
+          )}
         </Button>
       </form>
 
