@@ -107,13 +107,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       setLoading(true);
 
-      // 1. Create auth user
+      // Create auth user - profile and role are created automatically via database triggers
       const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
         options: {
+          emailRedirectTo: `${window.location.origin}/`,
           data: {
             full_name: data.fullName,
+            phone: data.phone,
+            profile_type: data.profileType,
+            current_school: data.currentSchool || null,
+            desired_course: data.desiredCourse || null,
+            family_income: data.familyIncome || null,
+            technical_course: data.technicalCourse || null,
+            subject: data.subject || null,
+            teaching_targets: data.teachingTargets || null,
           },
         },
       });
@@ -126,43 +135,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         throw new Error("Erro ao criar usuário");
       }
 
-      // 2. Create profile
-      const { error: profileError } = await supabase.from("profiles").insert({
-        user_id: authData.user.id,
-        full_name: data.fullName,
-        email: data.email,
-        phone: data.phone,
-        profile_type: data.profileType,
-        current_school: data.currentSchool || null,
-        desired_course: data.desiredCourse || null,
-        family_income: data.familyIncome || null,
-        technical_course: data.technicalCourse || null,
-        subject: data.subject || null,
-        teaching_targets: data.teachingTargets || null,
-      });
-
-      if (profileError) {
-        console.error("Error creating profile:", profileError);
-        throw profileError;
-      }
-
-      // 3. Assign role based on profile type
-      const roleMap: Record<string, "admin" | "moderator" | "student" | "teacher"> = {
-        etec: "student",
-        vestibular: "student",
-        professor: "teacher",
-      };
-
-      const role = roleMap[data.profileType] || "student";
-      
-      const { error: roleError } = await supabase.from("user_roles").insert([{
-        user_id: authData.user.id,
-        role: role,
-      }]);
-
-      if (roleError) {
-        console.error("Error assigning role:", roleError);
-        // Don't throw here - profile was created, role is secondary
+      // Update profile with additional fields that weren't captured by the trigger
+      if (data.currentSchool || data.desiredCourse || data.familyIncome || 
+          data.technicalCourse || data.subject || data.teachingTargets) {
+        // Small delay to ensure trigger has completed
+        setTimeout(async () => {
+          await supabase.from("profiles").update({
+            current_school: data.currentSchool || null,
+            desired_course: data.desiredCourse || null,
+            family_income: data.familyIncome || null,
+            technical_course: data.technicalCourse || null,
+            subject: data.subject || null,
+            teaching_targets: data.teachingTargets || null,
+          }).eq("user_id", authData.user!.id);
+        }, 500);
       }
 
       toast({
