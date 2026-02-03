@@ -53,8 +53,35 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // Set up auth state listener FIRST
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        console.log("Auth state changed:", event, session?.user?.id);
+        setSession(session);
+        setUser(session?.user ?? null);
+        
+        if (session?.user) {
+          // Defer profile fetch to avoid deadlock
+          setTimeout(() => {
+            fetchProfile(session.user.id);
+          }, 0);
+        } else {
+          setProfile(null);
+          setLoading(false);
+        }
+      }
+    );
+
+    // THEN check for existing session
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      // If there's an error with the stored session, clear it
+      if (error) {
+        console.error("Session error, clearing stored session:", error);
+        supabase.auth.signOut();
+        setLoading(false);
+        return;
+      }
+      
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
@@ -63,22 +90,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setLoading(false);
       }
     });
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log("Auth state changed:", event, session?.user?.id);
-        setSession(session);
-        setUser(session?.user ?? null);
-        
-        if (session?.user) {
-          await fetchProfile(session.user.id);
-        } else {
-          setProfile(null);
-          setLoading(false);
-        }
-      }
-    );
 
     return () => subscription.unsubscribe();
   }, []);
@@ -180,14 +191,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signIn = async (email: string, password: string): Promise<{ error: Error | null }> => {
     try {
       setLoading(true);
+      
+      // Clear any corrupted session before attempting login
+      const { data: currentSession } = await supabase.auth.getSession();
+      if (currentSession.session === null) {
+        // Clear localStorage to remove any stale tokens
+        const storageKey = `sb-${import.meta.env.VITE_SUPABASE_PROJECT_ID}-auth-token`;
+        localStorage.removeItem(storageKey);
+      }
 
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) {
         throw error;
+      }
+
+      if (data.session) {
+        setSession(data.session);
+        setUser(data.user);
       }
 
       toast({
@@ -204,6 +228,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         message = "E-mail ou senha incorretos.";
       } else if (error.message?.includes("Email not confirmed")) {
         message = "Confirme seu e-mail antes de fazer login.";
+      } else if (error.message?.includes("refresh_token_not_found")) {
+        message = "Sessão expirada. Por favor, faça login novamente.";
       }
 
       toast({
